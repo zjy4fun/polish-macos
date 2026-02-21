@@ -13,7 +13,6 @@ final class PolishPanelController {
     func showPrepare(original: String, anchorButton: NSStatusBarButton?, onRepolish: @escaping (String) -> Void) {
         self.onRepolish = onRepolish
         hasPresentedContent = true
-        viewModel.canTriggerRepolish = true
         viewModel.original = original
         viewModel.simplified = ""
         viewModel.polished = ""
@@ -27,7 +26,6 @@ final class PolishPanelController {
     func showLoading(original: String, anchorButton: NSStatusBarButton?, onRepolish: @escaping (String) -> Void) {
         self.onRepolish = onRepolish
         hasPresentedContent = true
-        viewModel.canTriggerRepolish = true
         viewModel.original = original
         viewModel.simplified = ""
         viewModel.polished = ""
@@ -41,7 +39,6 @@ final class PolishPanelController {
     func showResult(original: String, variants: PolishVariants, anchorButton: NSStatusBarButton?, onRepolish: @escaping (String) -> Void) {
         self.onRepolish = onRepolish
         hasPresentedContent = true
-        viewModel.canTriggerRepolish = true
         viewModel.original = original
         viewModel.simplified = variants.simplified
         viewModel.polished = variants.polished
@@ -55,7 +52,6 @@ final class PolishPanelController {
     func showError(original: String, message: String, anchorButton: NSStatusBarButton?, onRepolish: ((String) -> Void)? = nil) {
         self.onRepolish = onRepolish
         hasPresentedContent = true
-        viewModel.canTriggerRepolish = onRepolish != nil
         viewModel.original = original
         viewModel.simplified = ""
         viewModel.polished = ""
@@ -125,7 +121,11 @@ final class PolishPanelController {
             viewModel.errorMessage = "原文不能为空，请先输入内容再重新润色。"
             return
         }
-        onRepolish?(trimmed)
+        guard let onRepolish else {
+            viewModel.errorMessage = "当前无法开始润色，请重新按 ⌥⌘P。"
+            return
+        }
+        onRepolish(trimmed)
     }
 
     private func position(panel: NSPanel, below anchorButton: NSStatusBarButton?) {
@@ -167,12 +167,9 @@ final class ResultViewModel: ObservableObject {
     @Published var commitMessage: String = ""
     @Published var errorMessage: String?
     @Published var isLoading: Bool = false
-    @Published var canTriggerRepolish: Bool = false
 
     var canRepolish: Bool {
-        canTriggerRepolish &&
-            original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false &&
-            !isLoading
+        original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && !isLoading
     }
 }
 

@@ -42,8 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let statusItem else { return }
 
         if let button = statusItem.button {
-            button.image = PolishBrandIcon.statusBarIcon() ??
-                NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Polish")
+            let icon = NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Polish")
+            icon?.isTemplate = true
+            button.image = icon
             button.imagePosition = .imageOnly
             button.toolTip = "Polish"
             button.target = self
@@ -70,10 +71,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let onRepolish: (String) -> Void = { [weak self] editedText in
+            self?.runPolish(text: editedText)
+        }
         panelController.showError(
             original: "",
             message: "暂无润色结果，请先选中文本后按 ⌥⌘P。",
-            anchorButton: sender
+            anchorButton: sender,
+            onRepolish: onRepolish
         )
     }
 
@@ -140,13 +145,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handlePolishShortcut() {
+        let onRepolish: (String) -> Void = { [weak self] editedText in
+            self?.runPolish(text: editedText)
+        }
         let textService = AccessibilityTextService.shared
         guard let selectedText = textService.currentSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
               selectedText.isEmpty == false else {
             panelController.showError(
                 original: "",
                 message: "未检测到选中文本。请先选中文本后再按 ⌥⌘P，并确认已在系统设置中授予辅助功能权限。",
-                anchorButton: statusItem?.button
+                anchorButton: statusItem?.button,
+                onRepolish: onRepolish
             )
             return
         }
@@ -156,7 +165,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panelController.showError(
                 original: selectedText,
                 message: "当前 Provider 尚未完成配置，请先在设置里完成引导。",
-                anchorButton: statusItem?.button
+                anchorButton: statusItem?.button,
+                onRepolish: onRepolish
             )
             return
         }
@@ -164,19 +174,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController.showPrepare(
             original: selectedText,
             anchorButton: statusItem?.button,
-            onRepolish: { [weak self] editedText in
-                self?.runPolish(text: editedText)
-            }
+            onRepolish: onRepolish
         )
     }
 
     private func runPolish(text: String) {
+        let onRepolish: (String) -> Void = { [weak self] editedText in
+            self?.runPolish(text: editedText)
+        }
         let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalizedText.isEmpty == false else {
             panelController.showError(
                 original: text,
                 message: "原文不能为空，请先输入内容后再润色。",
-                anchorButton: statusItem?.button
+                anchorButton: statusItem?.button,
+                onRepolish: onRepolish
+            )
+            return
+        }
+
+        guard viewModel.isConfigured else {
+            openSettings()
+            panelController.showError(
+                original: text,
+                message: "当前 Provider 尚未完成配置，请先在设置里完成引导。",
+                anchorButton: statusItem?.button,
+                onRepolish: onRepolish
             )
             return
         }
@@ -184,10 +207,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let requestID = UUID()
         latestPolishRequestID = requestID
         polishTask?.cancel()
-
-        let onRepolish: (String) -> Void = { [weak self] editedText in
-            self?.runPolish(text: editedText)
-        }
 
         if let cached = resultCache.get(text: normalizedText, settings: viewModel) {
             panelController.showResult(
