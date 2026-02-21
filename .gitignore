@@ -390,3 +390,11 @@ $RECYCLE.BIN/
 
 #generated manifest
 public/manifest.json
+
+# Swift / Xcode build artifacts
+macos/.build/
+.build/
+DerivedData/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
