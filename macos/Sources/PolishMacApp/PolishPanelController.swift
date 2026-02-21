@@ -3,6 +3,7 @@ import SwiftUI
 
 @MainActor
 final class PolishPanelController {
+    private let resultPanelSize = NSSize(width: 760, height: 620)
     private var window: NSWindow?
 
     func showResult(original: String, variants: PolishVariants) {
@@ -20,7 +21,7 @@ final class PolishPanelController {
                 self.window?.close()
             }
         )
-        show(view: AnyView(view), title: "润色结果")
+        show(view: AnyView(view), title: "润色结果", contentSize: resultPanelSize, minimumContentSize: resultPanelSize)
     }
 
     func showError(_ message: String) {
@@ -34,24 +35,24 @@ final class PolishPanelController {
         .padding(20)
         .frame(width: 420)
 
-        show(view: AnyView(view), title: "错误")
+        show(view: AnyView(view), title: "错误", contentSize: NSSize(width: 420, height: 220), minimumContentSize: NSSize(width: 420, height: 220))
     }
 
-    private func show(view: AnyView, title: String) {
+    private func show(view: AnyView, title: String, contentSize: NSSize, minimumContentSize: NSSize) {
         let host = NSHostingController(rootView: view)
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 700, height: 620),
+            contentRect: NSRect(origin: .zero, size: contentSize),
             styleMask: [.titled, .closable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.title = title
         panel.level = .floating
-        panel.minSize = NSSize(width: 760, height: 620)
-        panel.setContentSize(NSSize(width: 760, height: 620))
-        panel.center()
         panel.contentViewController = host
+        panel.contentMinSize = minimumContentSize
+        panel.setContentSize(contentSize)
+        panel.center()
         panel.isReleasedWhenClosed = false
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -82,6 +83,7 @@ struct ResultView: View {
                 Button(copyTitle) { onCopy(text.wrappedValue) }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     var body: some View {
@@ -93,6 +95,7 @@ struct ResultView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(height: 90)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack {
                 Spacer()
@@ -108,7 +111,8 @@ struct ResultView: View {
                 Button("关闭", action: onClose)
             }
         }
-        .frame(minWidth: 760, idealWidth: 760, maxWidth: .infinity, alignment: .leading)
         .padding(16)
+        .frame(width: 760, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
