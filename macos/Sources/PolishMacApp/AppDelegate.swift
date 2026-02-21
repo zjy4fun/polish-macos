@@ -6,6 +6,9 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
+    private var statusItem: NSStatusItem?
+    private var polishTask: Task<Void, Never>?
+    private var latestPolishRequestID = UUID()
     private let panelController = PolishPanelController()
 
     let viewModel = SettingsViewModel()
@@ -26,13 +29,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func installStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "Polish"
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        guard let statusItem else { return }
+
+        if let button = statusItem.button {
+            let icon = NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Polish")
+            icon?.isTemplate = true
+            button.image = icon
+            button.imagePosition = .imageOnly
+            button.toolTip = "Polish"
+        }
+
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "设置", action: #selector(openSettings), keyEquivalent: ","))
+        let settingsItem = NSMenuItem(title: "设置", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q"))
-        item.menu = menu
+        let quitItem = NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+        statusItem.menu = menu
     }
 
     @objc private func openSettings() {
@@ -71,30 +87,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let selfPointer = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(GetEventDispatcherTarget(), callback, 1, &eventType, selfPointer, &hotKeyHandler)
 
-        let cmdKeyOnly = UInt32(cmdKey)
+        let cmdOptionKey = UInt32(cmdKey | optionKey)
         let hotKeyID = EventHotKeyID(signature: OSType("POLI".fourCharCodeValue), id: 1)
-        RegisterEventHotKey(UInt32(kVK_ANSI_P), cmdKeyOnly, hotKeyID, GetEventDispatcherTarget(), 0, &hotKeyRef)
+        RegisterEventHotKey(UInt32(kVK_ANSI_P), cmdOptionKey, hotKeyID, GetEventDispatcherTarget(), 0, &hotKeyRef)
     }
 
     private func handlePolishShortcut() {
-        Task { @MainActor in
-            let pasteboard = NSPasteboard.general
-            guard let clipboardText = pasteboard.string(forType: .string), clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-                panelController.showError("剪切板为空，请先复制文本后再按 ⌘P")
-                return
-            }
+        let pasteboard = NSPasteboard.general
+        guard let clipboardText = pasteboard.string(forType: .string), clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            panelController.showError(
+                original: "",
+                message: "剪切板为空，请先复制文本后再按 ⌥⌘P",
+                anchorButton: statusItem?.button
+            )
+            return
+        }
 
-            guard viewModel.isConfigured else {
-                openSettings()
-                panelController.showError("当前 Provider 尚未完成配置，请先在设置里完成引导。")
-                return
-            }
+        guard viewModel.isConfigured else {
+            openSettings()
+            panelController.showError(
+                original: clipboardText,
+                message: "当前 Provider 尚未完成配置，请先在设置里完成引导。",
+                anchorButton: statusItem?.button
+            )
+            return
+        }
 
+        runPolish(text: clipboardText)
+    }
+
+    private func runPolish(text: String) {
+        let requestID = UUID()
+        latestPolishRequestID = requestID
+        polishTask?.cancel()
+
+        let onRepolish: (String) -> Void = { [weak self] editedText in
+            self?.runPolish(text: editedText)
+        }
+
+        panelController.showLoading(original: text, anchorButton: statusItem?.button, onRepolish: onRepolish)
+
+        polishTask = Task { @MainActor in
             do {
-                let variants = try await PolishService.shared.polishVariants(text: clipboardText, settings: viewModel)
-                panelController.showResult(original: clipboardText, variants: variants)
+                let variants = try await PolishService.shared.polishVariants(text: text, settings: viewModel)
+                guard Task.isCancelled == false, latestPolishRequestID == requestID else { return }
+                panelController.showResult(
+                    original: text,
+                    variants: variants,
+                    anchorButton: statusItem?.button,
+                    onRepolish: onRepolish
+                )
             } catch {
-                panelController.showError(error.localizedDescription)
+                guard Task.isCancelled == false, latestPolishRequestID == requestID else { return }
+                if error is CancellationError { return }
+                panelController.showError(
+                    original: text,
+                    message: error.localizedDescription,
+                    anchorButton: statusItem?.button,
+                    onRepolish: onRepolish
+                )
             }
         }
     }
