@@ -5,15 +5,16 @@ import SwiftUI
 final class PolishPanelController {
     private var window: NSWindow?
 
-    func showResult(original: String, variants: PolishVariants, onApply: @escaping (String) -> Void) {
+    func showResult(original: String, variants: PolishVariants) {
         let view = ResultView(
             original: original,
             simplified: variants.simplified,
             polished: variants.polished,
             commitMessage: variants.commitMessage,
-            onApply: {
-                onApply($0)
-                self.window?.close()
+            onCopy: { value in
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(value, forType: .string)
             },
             onClose: {
                 self.window?.close()
@@ -62,10 +63,10 @@ struct ResultView: View {
     @State var simplified: String
     @State var polished: String
     @State var commitMessage: String
-    let onApply: (String) -> Void
+    let onCopy: (String) -> Void
     let onClose: () -> Void
 
-    private func outputSection(title: String, text: Binding<String>, applyTitle: String) -> some View {
+    private func outputSection(title: String, text: Binding<String>, copyTitle: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.headline)
@@ -76,7 +77,7 @@ struct ResultView: View {
 
             HStack {
                 Spacer()
-                Button(applyTitle) { onApply(text.wrappedValue) }
+                Button(copyTitle) { onCopy(text.wrappedValue) }
             }
         }
     }
@@ -91,9 +92,14 @@ struct ResultView: View {
             }
             .frame(height: 90)
 
-            outputSection(title: "简化版本", text: $simplified, applyTitle: "替换为简化版本")
-            outputSection(title: "优化表述版本", text: $polished, applyTitle: "替换为优化版本")
-            outputSection(title: "Commit Message", text: $commitMessage, applyTitle: "替换为 Commit Message")
+            HStack {
+                Spacer()
+                Button("复制原文") { onCopy(original) }
+            }
+
+            outputSection(title: "简化版本", text: $simplified, copyTitle: "复制简化版本")
+            outputSection(title: "优化表述版本", text: $polished, copyTitle: "复制优化版本")
+            outputSection(title: "Commit Message", text: $commitMessage, copyTitle: "复制 Commit Message")
 
             HStack {
                 Spacer()

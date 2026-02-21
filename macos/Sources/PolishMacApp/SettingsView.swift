@@ -21,13 +21,13 @@ struct SettingsView: View {
         Form {
             SecureField("OpenAI API Key", text: $viewModel.apiKey)
             TextField("API Endpoint", text: $viewModel.endpoint)
-            Text("全局快捷键：⌘P（先在任意 App 中选中文本）")
+            Text("全局快捷键：⌘P（直接读取剪切板中的文本）")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             Text("按下后会同时生成：原文 + 简化版本 + 优化表述版本 + commit message")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Text("首次使用需在系统设置中授予辅助功能权限。")
+            Text("结果弹窗支持一键复制各版本到剪切板。")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

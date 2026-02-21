@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        requestAccessibilityPermissionIfNeeded()
         installStatusItem()
         registerHotKey()
     }
@@ -43,11 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quit() {
         NSApp.terminate(nil)
-    }
-
-    private func requestAccessibilityPermissionIfNeeded() {
-        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     private func registerHotKey() {
@@ -84,17 +78,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handlePolishShortcut() {
         Task { @MainActor in
-            let textService = AccessibilityTextService.shared
-            guard let selectedText = textService.currentSelectedText(), selectedText.isEmpty == false else {
-                panelController.showError("未检测到选中文本，请先选中文本后再按 ⌘P")
+            let pasteboard = NSPasteboard.general
+            guard let clipboardText = pasteboard.string(forType: .string), clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                panelController.showError("剪切板为空，请先复制文本后再按 ⌘P")
                 return
             }
 
             do {
-                let variants = try await PolishService.shared.polishVariants(text: selectedText, apiKey: viewModel.apiKey, endpoint: viewModel.endpoint)
-                panelController.showResult(original: selectedText, variants: variants) { replacement in
-                    textService.replaceCurrentSelection(with: replacement)
-                }
+                let variants = try await PolishService.shared.polishVariants(text: clipboardText, apiKey: viewModel.apiKey, endpoint: viewModel.endpoint)
+                panelController.showResult(original: clipboardText, variants: variants)
             } catch {
                 panelController.showError(error.localizedDescription)
             }
