@@ -109,10 +109,13 @@ struct SettingsView: View {
             }
 
             Section("使用说明") {
-                Text("全局快捷键：⌥⌘P（直接读取剪切板中的文本）")
+                Text("全局快捷键：⌥⌘P（读取当前选中的文本）")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Text("按下后会同时生成：原文 + 简化版本 + 优化表述版本 + commit message")
+                Text("按下后先进入确认编辑，再点击“开始润色”。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text("完成后会生成：简化版本 + 优化表述版本 + commit message")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Text("结果弹窗支持一键复制各版本到剪切板。")

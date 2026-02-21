@@ -4,11 +4,25 @@ import SwiftUI
 @MainActor
 final class PolishPanelController {
     private let defaultResultPanelSize = NSSize(width: 640, height: 500)
-    private let minimumResultPanelSize = NSSize(width: 580, height: 440)
+    private let minimumResultPanelSize = NSSize(width: 540, height: 360)
     private let viewModel = ResultViewModel()
     private var window: NSPanel?
     private var onRepolish: ((String) -> Void)?
     private var hasPresentedContent = false
+
+    func showPrepare(original: String, anchorButton: NSStatusBarButton?, onRepolish: @escaping (String) -> Void) {
+        self.onRepolish = onRepolish
+        hasPresentedContent = true
+        viewModel.canTriggerRepolish = true
+        viewModel.original = original
+        viewModel.simplified = ""
+        viewModel.polished = ""
+        viewModel.commitMessage = ""
+        viewModel.errorMessage = nil
+        viewModel.isLoading = false
+
+        presentPanel(anchorButton: anchorButton)
+    }
 
     func showLoading(original: String, anchorButton: NSStatusBarButton?, onRepolish: @escaping (String) -> Void) {
         self.onRepolish = onRepolish
@@ -124,6 +138,15 @@ final class PolishPanelController {
         let buttonFrameOnScreen = anchorWindow.convertToScreen(buttonFrameInWindow)
         let screenFrame = (anchorWindow.screen ?? NSScreen.main)?.visibleFrame
 
+        if let screenFrame {
+            let fittingWidth = min(defaultResultPanelSize.width, max(minimumResultPanelSize.width, screenFrame.width - 16))
+            let fittingHeight = min(defaultResultPanelSize.height, max(minimumResultPanelSize.height, screenFrame.height - 16))
+            let currentSize = panel.contentLayoutRect.size
+            if abs(currentSize.width - fittingWidth) > 0.5 || abs(currentSize.height - fittingHeight) > 0.5 {
+                panel.setContentSize(NSSize(width: fittingWidth, height: fittingHeight))
+            }
+        }
+
         var originX = buttonFrameOnScreen.midX - panel.frame.width / 2
         var originY = buttonFrameOnScreen.minY - panel.frame.height - 8
 
@@ -183,13 +206,6 @@ struct ResultView: View {
             }
         }
 
-        var emptyHint: String {
-            switch self {
-            case .simplified: return "简化版本会展示在这里。"
-            case .polished: return "优化版本会展示在这里。"
-            case .commitMessage: return "Commit Message 会展示在这里。"
-            }
-        }
     }
 
     private var selectedOutputText: Binding<String> {
@@ -222,7 +238,7 @@ struct ResultView: View {
         if hasOutput {
             return "可切换分段查看并复制结果。"
         }
-        return selectedOutput.emptyHint
+        return "编辑原文后，点击“开始润色”。"
     }
 
     private var statusColor: Color {
@@ -232,103 +248,113 @@ struct ResultView: View {
         return .secondary
     }
 
+    private var primaryActionTitle: String {
+        hasOutput ? "重新润色" : "开始润色"
+    }
+
+    private var primaryActionSymbol: String {
+        hasOutput ? "arrow.clockwise" : "sparkles"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("润色结果", systemImage: "wand.and.stars")
-                    .font(.headline.weight(.semibold))
-                Spacer()
-                if viewModel.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-            .padding(.horizontal, 2)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Label("原文（可编辑）", systemImage: "doc.text")
-                    .font(.subheadline.weight(.semibold))
-
-                TextEditor(text: $viewModel.original)
-                    .scrollContentBackground(.hidden)
-                    .font(.body)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, minHeight: 88, maxHeight: 118, alignment: .topLeading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(nsColor: .textBackgroundColor))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(Color.gray.opacity(0.18), lineWidth: 1)
-                    )
-
-                HStack(spacing: 10) {
-                    Button {
-                        onRepolish(viewModel.original)
-                    } label: {
-                        Label("重新润色", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!viewModel.canRepolish)
-
-                    Button("复制原文") { onCopy(viewModel.original) }
-                        .disabled(viewModel.original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    Spacer()
-                    Button("关闭", action: onClose)
-                }
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
-
-            VStack(alignment: .leading, spacing: 10) {
-                Label("润色输出", systemImage: "text.alignleft")
-                    .font(.subheadline.weight(.semibold))
-
-                Picker("输出类型", selection: $selectedOutput) {
-                    ForEach(OutputKind.allCases) { output in
-                        Text(output.title).tag(output)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                TextEditor(text: selectedOutputText)
-                    .scrollContentBackground(.hidden)
-                    .font(.body)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(nsColor: .textBackgroundColor))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(Color.gray.opacity(0.18), lineWidth: 1)
-                    )
-
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text(statusMessage)
-                        .font(.footnote)
-                        .foregroundStyle(statusColor)
-                        .lineLimit(2)
+                    Label("润色结果", systemImage: "wand.and.stars")
+                        .font(.headline.weight(.semibold))
                     Spacer()
-                    Button(selectedOutput.copyTitle) { onCopy(selectedOutputValue) }
-                        .disabled(selectedOutputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
                 }
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
+                .padding(.horizontal, 2)
 
-            Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("原文（可编辑）", systemImage: "doc.text")
+                        .font(.subheadline.weight(.semibold))
+
+                    TextEditor(text: $viewModel.original)
+                        .scrollContentBackground(.hidden)
+                        .font(.body)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, minHeight: 88, maxHeight: 118, alignment: .topLeading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(nsColor: .textBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .strokeBorder(Color.gray.opacity(0.18), lineWidth: 1)
+                        )
+
+                    HStack(spacing: 10) {
+                        Button {
+                            onRepolish(viewModel.original)
+                        } label: {
+                            Label(primaryActionTitle, systemImage: primaryActionSymbol)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!viewModel.canRepolish)
+
+                        Button("复制原文") { onCopy(viewModel.original) }
+                            .disabled(viewModel.original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Spacer()
+                        Button("关闭", action: onClose)
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("润色输出", systemImage: "text.alignleft")
+                        .font(.subheadline.weight(.semibold))
+
+                    Picker("输出类型", selection: $selectedOutput) {
+                        ForEach(OutputKind.allCases) { output in
+                            Text(output.title).tag(output)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    TextEditor(text: selectedOutputText)
+                        .scrollContentBackground(.hidden)
+                        .font(.body)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 260, alignment: .topLeading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(nsColor: .textBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .strokeBorder(Color.gray.opacity(0.18), lineWidth: 1)
+                        )
+
+                    HStack {
+                        Text(statusMessage)
+                            .font(.footnote)
+                            .foregroundStyle(statusColor)
+                            .lineLimit(2)
+                        Spacer()
+                        Button(selectedOutput.copyTitle) { onCopy(selectedOutputValue) }
+                            .disabled(selectedOutputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(14)
+        .scrollIndicators(.visible)
         .background(
             LinearGradient(
                 colors: [
@@ -340,10 +366,10 @@ struct ResultView: View {
             )
         )
         .frame(
-            minWidth: 600,
+            minWidth: 540,
             idealWidth: 640,
             maxWidth: .infinity,
-            minHeight: 460,
+            minHeight: 340,
             idealHeight: 500,
             maxHeight: .infinity,
             alignment: .topLeading

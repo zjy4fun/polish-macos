@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polish for macOS | 选中文本，一键润色</title>
+    <meta
+      name="description"
+      content="Polish for macOS：选中文本后按 ⌥⌘P，确认编辑后生成简化版本、优化版本与 Commit Message。"
+    />
+    <meta property="og:title" content="Polish for macOS" />
+    <meta
+      property="og:description"
+      content="选中文本，一键唤起，确认后再润色。支持 Codex CLI / OpenAI / Claude。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://zjy4fun.github.io/polish-macos/" />
+    <meta property="og:image" content="https://zjy4fun.github.io/polish-macos/assets/polish-brand-icon.svg" />
+    <link rel="icon" href="./assets/polish-brand-icon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --bg: #f5f8ff;
+        --text: #1a2333;
+        --muted: #5d6880;
+        --card: rgba(255, 255, 255, 0.86);
+        --line: rgba(17, 34, 68, 0.12);
+        --brand-a: #0c57db;
+        --brand-b: #14ada4;
+        --brand-c: #f09a25;
+        --shadow: 0 16px 40px rgba(13, 41, 87, 0.16);
+        --radius-xl: 24px;
+        --radius-lg: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Avenir Next", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(60rem 34rem at 110% -10%, rgba(20, 173, 164, 0.2), transparent 55%),
+          radial-gradient(56rem 30rem at -10% -20%, rgba(12, 87, 219, 0.18), transparent 52%),
+          linear-gradient(180deg, #f8fbff 0%, #edf3ff 100%);
+      }
+
+      .shell {
+        width: min(1120px, calc(100vw - 32px));
+        margin: 0 auto;
+      }
+
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        backdrop-filter: blur(10px);
+        background: rgba(245, 248, 255, 0.72);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .nav-inner {
+        min-height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .brand img {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        box-shadow: 0 8px 18px rgba(18, 71, 173, 0.22);
+      }
+
+      .brand strong {
+        font-size: 20px;
+        letter-spacing: 0.2px;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 11px 16px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        text-decoration: none;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.72);
+        font-weight: 600;
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(18, 63, 143, 0.14);
+      }
+
+      .btn.primary {
+        color: #fff;
+        border-color: transparent;
+        background: linear-gradient(130deg, var(--brand-a), var(--brand-b) 62%, var(--brand-c));
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 26px;
+        padding: 56px 0 34px;
+        align-items: center;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(36px, 6vw, 58px);
+        line-height: 1.06;
+        letter-spacing: -1px;
+      }
+
+      .hero p {
+        margin: 16px 0 0;
+        font-size: 18px;
+        color: var(--muted);
+        max-width: 44ch;
+      }
+
+      .chips {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 20px 0 26px;
+      }
+
+      .chip {
+        font-size: 13px;
+        color: #223251;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(24, 42, 80, 0.14);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .cta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .hero-card {
+        position: relative;
+        border-radius: var(--radius-xl);
+        border: 1px solid rgba(22, 51, 104, 0.12);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 249, 255, 0.92));
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        min-height: 320px;
+        padding: 24px;
+      }
+
+      .hero-card::before,
+      .hero-card::after {
+        content: "";
+        position: absolute;
+        border-radius: 999px;
+        filter: blur(4px);
+      }
+
+      .hero-card::before {
+        width: 220px;
+        height: 220px;
+        right: -50px;
+        top: -55px;
+        background: radial-gradient(circle at center, rgba(12, 87, 219, 0.32), transparent 62%);
+      }
+
+      .hero-card::after {
+        width: 190px;
+        height: 190px;
+        left: -60px;
+        bottom: -66px;
+        background: radial-gradient(circle at center, rgba(240, 154, 37, 0.28), transparent 62%);
+      }
+
+      .flow {
+        position: relative;
+        z-index: 2;
+        display: grid;
+        gap: 10px;
+      }
+
+      .flow-step {
+        border-radius: 12px;
+        border: 1px solid rgba(20, 43, 90, 0.14);
+        background: rgba(255, 255, 255, 0.86);
+        padding: 12px 14px;
+      }
+
+      .flow-step b {
+        display: block;
+        font-size: 14px;
+      }
+
+      .flow-step span {
+        color: #60708d;
+        font-size: 13px;
+      }
+
+      .section {
+        padding: 22px 0;
+      }
+
+      .section h2 {
+        margin: 0 0 14px;
+        font-size: 28px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .grid.feature {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--line);
+        background: var(--card);
+        box-shadow: 0 8px 24px rgba(16, 38, 78, 0.08);
+        padding: 16px;
+      }
+
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.58;
+      }
+
+      .install {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 14px;
+      }
+
+      pre {
+        margin: 0;
+        padding: 14px;
+        border-radius: 12px;
+        background: #0d1b35;
+        color: #d8e6ff;
+        overflow: auto;
+        font-size: 13px;
+      }
+
+      footer {
+        margin: 26px 0 38px;
+        color: #5f6c86;
+        font-size: 14px;
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .install,
+        .grid.feature {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          padding-top: 34px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .nav-inner {
+          min-height: 64px;
+        }
+        .brand strong {
+          font-size: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav">
+      <div class="shell nav-inner">
+        <a class="brand" href="./">
+          <img src="./assets/polish-brand-icon.svg" alt="Polish Logo" />
+          <strong>Polish for macOS</strong>
+        </a>
+        <nav class="nav-links">
+          <a class="btn" href="https://github.com/zjy4fun/polish-macos" target="_blank" rel="noreferrer">GitHub</a>
+          <a class="btn primary" href="https://github.com/zjy4fun/polish-macos/releases" target="_blank" rel="noreferrer">
+            下载最新版
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <h1>选中文本，确认后<br />一键润色</h1>
+          <p>
+            Polish 把“复制粘贴 + 多轮改写”压缩成一个动作：
+            `⌥⌘P` 唤起确认窗口，编辑后点击“开始润色”，立即得到简化版本、优化版本和 Commit Message。
+          </p>
+          <div class="chips">
+            <span class="chip">macOS 13+</span>
+            <span class="chip">默认 Codex CLI</span>
+            <span class="chip">缓存命中，秒回结果</span>
+            <span class="chip">菜单栏恢复最近结果</span>
+          </div>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/zjy4fun/polish-macos/releases" target="_blank" rel="noreferrer">
+              去 Releases 下载
+            </a>
+            <a class="btn" href="https://github.com/zjy4fun/polish-macos#readme" target="_blank" rel="noreferrer">
+              查看文档
+            </a>
+          </div>
+        </div>
+        <aside class="hero-card">
+          <div class="flow">
+            <div class="flow-step">
+              <b>1. 选中文本</b>
+              <span>在任意 app 里选中内容后按 `⌥⌘P`。</span>
+            </div>
+            <div class="flow-step">
+              <b>2. 确认编辑</b>
+              <span>在确认窗口里先改好原文，再点“开始润色”。</span>
+            </div>
+            <div class="flow-step">
+              <b>3. 输出即用</b>
+              <span>切换查看简化版 / 优化版 / Commit Message，一键复制。</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section">
+        <h2>核心能力</h2>
+        <div class="grid feature">
+          <article class="card">
+            <h3>确认后再执行</h3>
+            <p>不是盲目立刻调用模型。先给你一个编辑确认步骤，减少误触与误润色。</p>
+          </article>
+          <article class="card">
+            <h3>本地优先默认</h3>
+            <p>默认使用 Codex CLI，也可切换 OpenAI API 或 Claude Code CLI。</p>
+          </article>
+          <article class="card">
+            <h3>命中缓存</h3>
+            <p>相同文本 + Provider 配置自动命中缓存，避免重复等待与重复请求。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section install">
+        <article class="card">
+          <h3>快速开始</h3>
+          <pre><code>cd macos
+swift build
+swift run PolishMac</code></pre>
+        </article>
+        <article class="card">
+          <h3>下载渠道</h3>
+          <p style="margin-bottom: 12px">
+            推荐直接从 GitHub Releases 下载打包版本或源码产物。
+          </p>
+          <a class="btn primary" href="https://github.com/zjy4fun/polish-macos/releases" target="_blank" rel="noreferrer">
+            打开 Releases
+          </a>
+        </article>
+      </section>
+    </main>
+
+    <footer class="shell">
+      <span id="footer-year"></span> Polish for macOS · Built for focused writing on macOS.
+    </footer>
+
+    <script>
+      document.getElementById("footer-year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Carbon
 import SwiftUI
 
@@ -7,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     private var statusItem: NSStatusItem?
+    private var settingsWindow: NSWindow?
     private let statusMenu = NSMenu()
     private var polishTask: Task<Void, Never>?
     private var latestPolishRequestID = UUID()
@@ -17,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if let appIcon = PolishBrandIcon.appIcon() {
+            NSApp.applicationIconImage = appIcon
+        }
+        requestAccessibilityPermissionIfNeeded()
         installStatusItem()
         registerHotKey()
     }
@@ -36,9 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let statusItem else { return }
 
         if let button = statusItem.button {
-            let icon = NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Polish")
-            icon?.isTemplate = true
-            button.image = icon
+            button.image = PolishBrandIcon.statusBarIcon() ??
+                NSImage(systemSymbolName: "wand.and.stars", accessibilityDescription: "Polish")
             button.imagePosition = .imageOnly
             button.toolTip = "Polish"
             button.target = self
@@ -67,18 +72,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         panelController.showError(
             original: "",
-            message: "暂无润色结果，请先复制文本后按 ⌥⌘P。",
+            message: "暂无润色结果，请先选中文本后按 ⌥⌘P。",
             anchorButton: sender
         )
     }
 
     @objc private func openSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        let window = settingsWindow ?? makeSettingsWindow()
+        settingsWindow = window
+        window.center()
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    private func makeSettingsWindow() -> NSWindow {
+        let hosting = NSHostingController(
+            rootView: SettingsView(viewModel: viewModel)
+                .frame(width: 560, height: 420)
+        )
+        let window = NSWindow(contentViewController: hosting)
+        window.title = "设置"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: 560, height: 420))
+        return window
+    }
+
+    private func requestAccessibilityPermissionIfNeeded() {
+        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     private func registerHotKey() {
@@ -114,11 +140,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handlePolishShortcut() {
-        let pasteboard = NSPasteboard.general
-        guard let clipboardText = pasteboard.string(forType: .string), clipboardText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+        let textService = AccessibilityTextService.shared
+        guard let selectedText = textService.currentSelectedText()?.trimmingCharacters(in: .whitespacesAndNewlines),
+              selectedText.isEmpty == false else {
             panelController.showError(
                 original: "",
-                message: "剪切板为空，请先复制文本后再按 ⌥⌘P",
+                message: "未检测到选中文本。请先选中文本后再按 ⌥⌘P，并确认已在系统设置中授予辅助功能权限。",
                 anchorButton: statusItem?.button
             )
             return
@@ -127,14 +154,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard viewModel.isConfigured else {
             openSettings()
             panelController.showError(
-                original: clipboardText,
+                original: selectedText,
                 message: "当前 Provider 尚未完成配置，请先在设置里完成引导。",
                 anchorButton: statusItem?.button
             )
             return
         }
 
-        runPolish(text: clipboardText)
+        panelController.showPrepare(
+            original: selectedText,
+            anchorButton: statusItem?.button,
+            onRepolish: { [weak self] editedText in
+                self?.runPolish(text: editedText)
+            }
+        )
     }
 
     private func runPolish(text: String) {

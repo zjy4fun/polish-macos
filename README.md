@@ -1,23 +1,25 @@
 # Polish for macOS
 
-一个使用 Swift 实现的 macOS 文本润色应用：
+Polish 是一个 macOS 文本润色工具：选中文本后按 `⌥⌘P`，先确认编辑，再一键生成简化版、优化版和 `Commit Message`。
 
-- 全局快捷键 `⌥⌘P` 触发润色
-- 直接读取**剪切板文本**（无需读取选中文本）
-- 支持三种 Provider：
-  - OpenAI API（可配置 API Endpoint）
-  - 本地 Codex CLI
-  - 本地 Claude Code CLI
-- 新安装默认使用本地 Codex CLI
-- 首次启动提供引导设置界面
-- 浮窗同时展示：原文、简化版本、优化表述版本、commit message
-- 支持一键复制任意版本到剪切板
-- 对相同文本 + Provider 配置自动命中缓存，减少重复请求
-- 左键点击菜单栏图标可恢复最近一次润色结果窗口
+- 官网（落地页）：[https://zjy4fun.github.io/polish-macos/](https://zjy4fun.github.io/polish-macos/)
+- 下载地址（GitHub Releases）：[https://github.com/zjy4fun/polish-macos/releases](https://github.com/zjy4fun/polish-macos/releases)
+- 仓库地址：[https://github.com/zjy4fun/polish-macos](https://github.com/zjy4fun/polish-macos)
+
+## 功能亮点
+
+- 全局快捷键：`⌥⌘P`
+- 读取当前选中文本（非剪贴板）
+- 先确认编辑，再开始润色
+- 输出三段结果：简化版本、优化版本、Commit Message
+- 同文本 + 同 Provider 配置自动命中缓存
+- 菜单栏图标可恢复最近一次结果窗口
+- 默认 Provider：Codex CLI（可切 OpenAI / Claude）
+- 全新品牌图标（应用图标 + 菜单栏图标）
 
 ## 快速开始
 
-> 需要 macOS 13+ 与 Xcode 15+
+> 需要 macOS 13+ 和 Xcode 15+
 
 ```bash
 cd macos
@@ -25,32 +27,42 @@ swift build
 swift run PolishMac
 ```
 
-## 使用说明
+## 使用流程
 
-1. 启动应用（状态栏会出现魔棒图标）
-2. 首次在设置中完成引导：选择 Provider 并填写配置
-3. 在任意应用中先复制文本（`⌘C`）
-4. 按 `⌥⌘P`
-5. 在浮窗中查看各版本结果，并按需复制
-6. 关闭浮窗后，可左键点击菜单栏图标恢复最近结果（右键可打开菜单）
+1. 启动应用。
+2. 在任意应用里选中文本。
+3. 按 `⌥⌘P` 唤起确认窗口。
+4. 编辑原文后点击“开始润色”。
+5. 查看并复制需要的结果。
 
 ## Provider 配置
 
-### 1) OpenAI API
-- API Key
-- API Endpoint（默认 `https://api.openai.com/v1/chat/completions`）
+### Codex CLI（默认）
 
-### 2) 本地 Codex CLI
-- 命令模板：默认 `codex exec --skip-git-repo-check {{prompt}}`
-- 要求本机可在终端直接执行 `codex`
+- 命令模板默认值：`codex exec --skip-git-repo-check {{prompt}}`
+- 需本机可直接执行 `codex`
 
-### 3) 本地 Claude Code CLI
-- 命令模板：默认 `claude -p {{prompt}}`
-- 要求本机可在终端直接执行 `claude`
+### OpenAI API
 
-`{{prompt}}` 会被自动替换为结构化提示词和剪切板文本。
+- 需要 `API Key`
+- Endpoint 默认：`https://api.openai.com/v1/chat/completions`
+
+### Claude Code CLI
+
+- 命令模板默认值：`claude -p {{prompt}}`
+- 需本机可直接执行 `claude`
+
+`{{prompt}}` 会自动替换为结构化提示词 + 已确认文本。
+
+## 落地页与部署
+
+- 落地页源码：`/docs/index.html`
+- 图标资源：`/docs/assets/polish-brand-icon.svg`
+- GitHub Pages 工作流：`/.github/workflows/pages.yml`
+
+默认会在 `main` 分支 `docs/**` 变更时自动部署页面。
 
 ## 注意事项
 
-- `⌥⌘P` 可避开大多数应用里 `⌘P` 的打印快捷键冲突。
-- 使用本地 CLI 时，需确保对应命令已安装并可执行。
+- 首次读取选中文本时，系统可能弹出“辅助功能”授权提示。
+- 如果快捷键与其他应用冲突，可在代码中调整。

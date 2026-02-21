@@ -14,7 +14,7 @@ final class PolishService {
     func polishVariants(text: String, settings: SettingsViewModel) async throws -> PolishVariants {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else {
-            throw NSError(domain: "Polish", code: 1, userInfo: [NSLocalizedDescriptionKey: "剪切板文本为空"])
+            throw NSError(domain: "Polish", code: 1, userInfo: [NSLocalizedDescriptionKey: "输入文本为空"])
         }
 
         switch settings.provider {
