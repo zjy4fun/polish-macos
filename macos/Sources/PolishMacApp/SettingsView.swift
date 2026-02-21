@@ -44,7 +44,17 @@ final class SettingsViewModel: ObservableObject {
         self.providerID = UserDefaults.standard.string(forKey: "providerID") ?? PolishProvider.openAI.rawValue
         self.apiKey = UserDefaults.standard.string(forKey: "apiKey") ?? ""
         self.endpoint = UserDefaults.standard.string(forKey: "endpoint") ?? "https://api.openai.com/v1/chat/completions"
-        self.codexCommand = UserDefaults.standard.string(forKey: "codexCommand") ?? "codex exec {{prompt}}"
+
+        let savedCodexCommand = UserDefaults.standard.string(forKey: "codexCommand")
+        let resolvedCodexCommand: String
+        if let savedCodexCommand, savedCodexCommand == "codex exec {{prompt}}" {
+            resolvedCodexCommand = "codex exec --skip-git-repo-check {{prompt}}"
+            UserDefaults.standard.set(resolvedCodexCommand, forKey: "codexCommand")
+        } else {
+            resolvedCodexCommand = savedCodexCommand ?? "codex exec --skip-git-repo-check {{prompt}}"
+        }
+        self.codexCommand = resolvedCodexCommand
+
         self.claudeCommand = UserDefaults.standard.string(forKey: "claudeCommand") ?? "claude -p {{prompt}}"
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
     }
