@@ -48,6 +48,8 @@ final class PolishPanelController {
         )
         panel.title = title
         panel.level = .floating
+        panel.minSize = NSSize(width: 760, height: 620)
+        panel.setContentSize(NSSize(width: 760, height: 620))
         panel.center()
         panel.contentViewController = host
         panel.isReleasedWhenClosed = false
@@ -71,8 +73,8 @@ struct ResultView: View {
             Text(title)
                 .font(.headline)
             TextEditor(text: text)
-                .frame(height: 95)
                 .font(.body)
+                .frame(maxWidth: .infinity, minHeight: 95, maxHeight: 95, alignment: .leading)
                 .border(Color.gray.opacity(0.3))
 
             HStack {
@@ -106,6 +108,7 @@ struct ResultView: View {
                 Button("关闭", action: onClose)
             }
         }
+        .frame(minWidth: 760, idealWidth: 760, maxWidth: .infinity, alignment: .leading)
         .padding(16)
     }
 }
