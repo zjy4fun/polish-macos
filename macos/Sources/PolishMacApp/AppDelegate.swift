@@ -84,8 +84,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
+            guard viewModel.isConfigured else {
+                openSettings()
+                panelController.showError("当前 Provider 尚未完成配置，请先在设置里完成引导。")
+                return
+            }
+
             do {
-                let variants = try await PolishService.shared.polishVariants(text: clipboardText, apiKey: viewModel.apiKey, endpoint: viewModel.endpoint)
+                let variants = try await PolishService.shared.polishVariants(text: clipboardText, settings: viewModel)
                 panelController.showResult(original: clipboardText, variants: variants)
             } catch {
                 panelController.showError(error.localizedDescription)
