@@ -4,9 +4,8 @@
 
 - 全局快捷键 `⌘P` 触发润色
 - 自动读取当前 App 的**选中文本**（需辅助功能权限）
-- 调用 OpenAI Chat Completions API 生成润色结果
-- 浮窗展示结果，可一键替换回原文本位置
-- **多种风格**：支持正式、简洁、Commit 优化三种润色风格
+- 调用 OpenAI Chat Completions API 同时生成多种输出
+- 浮窗同时展示：原文、简化版本、优化表述版本、commit message，并可一键替换
 - **隐私安全**：API Key 仅存储在本地（UserDefaults）
 
 ## 技术实现
@@ -43,7 +42,6 @@ swift run PolishMac
 
 - OpenAI API Key
 - API Endpoint（默认 `https://api.openai.com/v1/chat/completions`）
-- 默认润色风格（正式 / 简洁 / Commit 优化）
 
 ## 注意事项
 

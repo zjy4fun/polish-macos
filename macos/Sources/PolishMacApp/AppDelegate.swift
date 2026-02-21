@@ -91,8 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             do {
-                let polished = try await PolishService.shared.polish(text: selectedText, apiKey: viewModel.apiKey, endpoint: viewModel.endpoint, stylePrompt: viewModel.selectedStyle.prompt)
-                panelController.showResult(original: selectedText, polished: polished) { replacement in
+                let variants = try await PolishService.shared.polishVariants(text: selectedText, apiKey: viewModel.apiKey, endpoint: viewModel.endpoint)
+                panelController.showResult(original: selectedText, variants: variants) { replacement in
                     textService.replaceCurrentSelection(with: replacement)
                 }
             } catch {

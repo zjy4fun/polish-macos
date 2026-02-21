@@ -1,15 +1,9 @@
 import Foundation
 
-struct PolishStyle: Identifiable, Hashable {
-    let id: String
-    let name: String
-    let prompt: String
-
-    static let presets: [PolishStyle] = [
-        .init(id: "formal", name: "正式", prompt: "你是一个专业文本润色专家。请将用户提供的内容改写为正式、得体、逻辑清晰的表达。只返回润色后的文本。"),
-        .init(id: "concise", name: "简洁", prompt: "你是一个精简文案专家。请将用户提供的内容精简为更简洁有力的表达，保留核心意思。只返回润色后的文本。"),
-        .init(id: "commit", name: "Commit 优化", prompt: "你是一个 Git 提交信息优化专家。请改写为简洁清晰的 commit message。只返回单行 commit message。"),
-    ]
+struct PolishVariants {
+    let simplified: String
+    let polished: String
+    let commitMessage: String
 }
 
 final class PolishService {
@@ -17,7 +11,7 @@ final class PolishService {
 
     private init() {}
 
-    func polish(text: String, apiKey: String, endpoint: String, stylePrompt: String) async throws -> String {
+    func polishVariants(text: String, apiKey: String, endpoint: String) async throws -> PolishVariants {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else {
             throw NSError(domain: "Polish", code: 1, userInfo: [NSLocalizedDescriptionKey: "选中文本为空"])
@@ -35,12 +29,26 @@ final class PolishService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
+        let prompt = """
+你是一个中文文本改写助手。请基于用户输入，输出以下 3 个字段：
+1) simplified: 简化版本，保留原意，语句更短更直白
+2) polished: 优化表述版本，更自然、清晰、专业
+3) commit_message: 英文单行 git commit message（动词开头，<= 72 chars，no period）
+
+只输出 JSON，不要输出任何额外文字。格式必须严格如下：
+{
+  "simplified": "...",
+  "polished": "...",
+  "commit_message": "..."
+}
+"""
+
         let payload = ChatRequest(
             model: "gpt-4.1",
-            temperature: 0.7,
-            maxTokens: 600,
+            temperature: 0.4,
+            maxTokens: 700,
             messages: [
-                .init(role: "system", content: stylePrompt),
+                .init(role: "system", content: prompt),
                 .init(role: "user", content: trimmed),
             ]
         )
@@ -58,11 +66,44 @@ final class PolishService {
         }
 
         let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
-        if let content = decoded.choices.first?.message.content?.trimmingCharacters(in: .whitespacesAndNewlines), content.isEmpty == false {
-            return content
+        guard let content = decoded.choices.first?.message.content?.trimmingCharacters(in: .whitespacesAndNewlines), content.isEmpty == false else {
+            throw NSError(domain: "Polish", code: 5, userInfo: [NSLocalizedDescriptionKey: "模型未返回有效内容"])
         }
 
-        throw NSError(domain: "Polish", code: 5, userInfo: [NSLocalizedDescriptionKey: "模型未返回有效内容"])
+        let jsonText = extractJSON(from: content)
+        guard let jsonData = jsonText.data(using: .utf8) else {
+            throw NSError(domain: "Polish", code: 6, userInfo: [NSLocalizedDescriptionKey: "模型返回内容无法解析"])
+        }
+
+        do {
+            let result = try JSONDecoder().decode(VariantResponse.self, from: jsonData)
+            return PolishVariants(
+                simplified: result.simplified.trimmingCharacters(in: .whitespacesAndNewlines),
+                polished: result.polished.trimmingCharacters(in: .whitespacesAndNewlines),
+                commitMessage: result.commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        } catch {
+            throw NSError(domain: "Polish", code: 7, userInfo: [NSLocalizedDescriptionKey: "模型返回格式不正确，请重试"])
+        }
+    }
+
+    private func extractJSON(from text: String) -> String {
+        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}") {
+            return String(text[start...end])
+        }
+        return text
+    }
+}
+
+private struct VariantResponse: Decodable {
+    let simplified: String
+    let polished: String
+    let commitMessage: String
+
+    enum CodingKeys: String, CodingKey {
+        case simplified
+        case polished
+        case commitMessage = "commit_message"
     }
 }
 
