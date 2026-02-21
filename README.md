@@ -1,97 +1,52 @@
-# Polish - 文本润色助手
+# Polish for macOS
 
-一个浏览器扩展，利用 ChatGPT API 智能润色文本，让你的表达更专业、更清晰。
+一个使用 Swift 实现的 macOS 文本润色应用：
 
-## 功能特点
+- 全局快捷键 `⌘P` 触发润色
+- 自动读取当前 App 的**选中文本**（需辅助功能权限）
+- 调用 OpenAI Chat Completions API 生成润色结果
+- 浮窗展示结果，可一键替换回原文本位置
+- **多种风格**：支持正式、简洁、Commit 优化三种润色风格
+- **隐私安全**：API Key 仅存储在本地（UserDefaults）
 
-- **智能润色**：利用 ChatGPT API 优化你的文本表达
-- **多种风格**：支持正式、口语、简洁三种润色风格
-- **快捷触发**：通过快捷键 `Alt+O` 或右键菜单快速触发
-- **实时预览**：浮窗展示优化结果，一键替换原文本
-- **隐私安全**：API Key 仅存储在本地，不上传任何服务器
+## 技术实现
 
-## 安装使用
+- SwiftUI + AppKit（状态栏 + 浮窗）
+- Carbon HotKey（全局快捷键注册）
+- Accessibility API（读取/替换选中文本）
+- URLSession（调用 OpenAI API）
 
-### 1. 获取代码
+## 快速开始
 
-```bash
-git clone <repository-url>
-cd polish
-npm install --legacy-peer-deps
-```
-
-### 2. 构建扩展
+> 需要 macOS 13+ 与 Xcode 15+
 
 ```bash
-# 构建 Chrome 版本
-npm run build:chrome
-
-# 构建 Firefox 版本
-npm run build:firefox
+cd macos
+swift build
+swift run PolishMac
 ```
 
-### 3. 加载扩展
+首次运行后，请按提示在系统设置中授予辅助功能权限：
 
-**Chrome:**
-1. 打开 `chrome://extensions`
-2. 开启「开发者模式」
-3. 点击「加载已解压的扩展程序」
-4. 选择 `dist_chrome` 文件夹
+- `系统设置 -> 隐私与安全性 -> 辅助功能`
 
-**Firefox:**
-1. 打开 `about:debugging#/runtime/this-firefox`
-2. 点击「加载临时附加组件」
-3. 选择 `dist_firefox` 文件夹中的 `manifest.json`
+## 使用说明
 
-### 4. 配置 API Key
+1. 启动应用（状态栏会出现 `Polish`）
+2. 在任意可编辑文本区域中选中文字
+3. 按 `⌘P`
+4. 在浮窗中查看润色结果，点击“替换选中文本”
 
-1. 点击扩展图标，进入设置页面
-2. 输入你的 OpenAI API Key
-3. 选择默认润色风格
-4. 保存设置
+## 设置项
 
-## 使用方法
+在状态栏菜单打开“设置”可以配置：
 
-### 快捷键触发
-1. 在任意输入框中输入文本
-2. 按下 `Alt+O`
-3. 浮窗显示优化结果
-4. 点击「接受」替换原文本
+- OpenAI API Key
+- API Endpoint（默认 `https://api.openai.com/v1/chat/completions`）
+- 默认润色风格（正式 / 简洁 / Commit 优化）
 
-### 右键菜单触发
-1. 选中文本或聚焦输入框
-2. 右键选择「润色选中文本」或「润色输入框内容」
-3. 浮窗显示优化结果
+## 注意事项
 
-### Popup 触发
-1. 点击扩展图标
-2. 选择润色风格
-3. 点击「润色当前输入框」
-
-## 技术栈
-
-- **React 19** - UI 框架
-- **TypeScript** - 类型安全
-- **Tailwind CSS** - 样式
-- **Vite** - 构建工具
-- **Chrome Extension Manifest V3**
-
-## 开发
-
-```bash
-# 开发模式（Chrome）
-npm run dev:chrome
-
-# 开发模式（Firefox）
-npm run dev:firefox
-```
-
-## 安全说明
-
-- 不监听密码框、支付信息等敏感输入
-- API Key 仅存储在 `chrome.storage.local`
-- 只申请必要的权限：`activeTab`、`storage`、`contextMenus`
-
-## License
-
-MIT
+- `⌘P` 在部分应用中是打印快捷键，若冲突可在代码中调整。
+- 仅对支持辅助功能文本接口的应用有效。
+- API Key 保存在本地 `UserDefaults`。
