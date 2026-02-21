@@ -26,6 +26,6 @@ final class AccessibilityTextService {
         var focused: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused)
         guard status == .success else { return nil }
-        return focused as? AXUIElement
+        return focused as! AXUIElement
     }
 }
