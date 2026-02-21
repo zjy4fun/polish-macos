@@ -1,6 +1,6 @@
 import Foundation
 
-struct PolishVariants {
+struct PolishVariants: Codable {
     let simplified: String
     let polished: String
     let commitMessage: String

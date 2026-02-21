@@ -7,8 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     private var statusItem: NSStatusItem?
+    private let statusMenu = NSMenu()
     private var polishTask: Task<Void, Never>?
     private var latestPolishRequestID = UUID()
+    private let resultCache = PolishResultCache()
     private let panelController = PolishPanelController()
 
     let viewModel = SettingsViewModel()
@@ -20,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        polishTask?.cancel()
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
         }
@@ -38,17 +41,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = icon
             button.imagePosition = .imageOnly
             button.toolTip = "Polish"
+            button.target = self
+            button.action = #selector(handleStatusItemClick(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
-        let menu = NSMenu()
         let settingsItem = NSMenuItem(title: "设置", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
-        menu.addItem(settingsItem)
-        menu.addItem(NSMenuItem.separator())
+        statusMenu.addItem(settingsItem)
+        statusMenu.addItem(NSMenuItem.separator())
         let quitItem = NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
-        menu.addItem(quitItem)
-        statusItem.menu = menu
+        statusMenu.addItem(quitItem)
+    }
+
+    @objc private func handleStatusItemClick(_ sender: NSStatusBarButton) {
+        if let event = NSApp.currentEvent, event.type == .rightMouseUp {
+            NSMenu.popUpContextMenu(statusMenu, with: event, for: sender)
+            return
+        }
+
+        if panelController.restoreLastPanel(anchorButton: sender) {
+            return
+        }
+
+        panelController.showError(
+            original: "",
+            message: "暂无润色结果，请先复制文本后按 ⌥⌘P。",
+            anchorButton: sender
+        )
     }
 
     @objc private func openSettings() {
@@ -117,6 +138,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func runPolish(text: String) {
+        let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedText.isEmpty == false else {
+            panelController.showError(
+                original: text,
+                message: "原文不能为空，请先输入内容后再润色。",
+                anchorButton: statusItem?.button
+            )
+            return
+        }
+
         let requestID = UUID()
         latestPolishRequestID = requestID
         polishTask?.cancel()
@@ -125,12 +156,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.runPolish(text: editedText)
         }
 
+        if let cached = resultCache.get(text: normalizedText, settings: viewModel) {
+            panelController.showResult(
+                original: text,
+                variants: cached,
+                anchorButton: statusItem?.button,
+                onRepolish: onRepolish
+            )
+            return
+        }
+
         panelController.showLoading(original: text, anchorButton: statusItem?.button, onRepolish: onRepolish)
 
         polishTask = Task { @MainActor in
             do {
                 let variants = try await PolishService.shared.polishVariants(text: text, settings: viewModel)
                 guard Task.isCancelled == false, latestPolishRequestID == requestID else { return }
+                resultCache.set(text: normalizedText, settings: viewModel, variants: variants)
                 panelController.showResult(
                     original: text,
                     variants: variants,

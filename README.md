@@ -8,9 +8,12 @@
   - OpenAI API（可配置 API Endpoint）
   - 本地 Codex CLI
   - 本地 Claude Code CLI
+- 新安装默认使用本地 Codex CLI
 - 首次启动提供引导设置界面
 - 浮窗同时展示：原文、简化版本、优化表述版本、commit message
 - 支持一键复制任意版本到剪切板
+- 对相同文本 + Provider 配置自动命中缓存，减少重复请求
+- 左键点击菜单栏图标可恢复最近一次润色结果窗口
 
 ## 快速开始
 
@@ -29,6 +32,7 @@ swift run PolishMac
 3. 在任意应用中先复制文本（`⌘C`）
 4. 按 `⌥⌘P`
 5. 在浮窗中查看各版本结果，并按需复制
+6. 关闭浮窗后，可左键点击菜单栏图标恢复最近结果（右键可打开菜单）
 
 ## Provider 配置
 
@@ -37,7 +41,7 @@ swift run PolishMac
 - API Endpoint（默认 `https://api.openai.com/v1/chat/completions`）
 
 ### 2) 本地 Codex CLI
-- 命令模板：默认 `codex exec {{prompt}}`
+- 命令模板：默认 `codex exec --skip-git-repo-check {{prompt}}`
 - 要求本机可在终端直接执行 `codex`
 
 ### 3) 本地 Claude Code CLI

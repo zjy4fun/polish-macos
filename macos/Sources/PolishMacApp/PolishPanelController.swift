@@ -3,13 +3,16 @@ import SwiftUI
 
 @MainActor
 final class PolishPanelController {
-    private let resultPanelSize = NSSize(width: 760, height: 620)
+    private let defaultResultPanelSize = NSSize(width: 640, height: 500)
+    private let minimumResultPanelSize = NSSize(width: 580, height: 440)
     private let viewModel = ResultViewModel()
     private var window: NSPanel?
     private var onRepolish: ((String) -> Void)?
+    private var hasPresentedContent = false
 
     func showLoading(original: String, anchorButton: NSStatusBarButton?, onRepolish: @escaping (String) -> Void) {
         self.onRepolish = onRepolish
+        hasPresentedContent = true
         viewModel.canTriggerRepolish = true
         viewModel.original = original
         viewModel.simplified = ""
@@ -23,6 +26,7 @@ final class PolishPanelController {
 
     func showResult(original: String, variants: PolishVariants, anchorButton: NSStatusBarButton?, onRepolish: @escaping (String) -> Void) {
         self.onRepolish = onRepolish
+        hasPresentedContent = true
         viewModel.canTriggerRepolish = true
         viewModel.original = original
         viewModel.simplified = variants.simplified
@@ -36,6 +40,7 @@ final class PolishPanelController {
 
     func showError(original: String, message: String, anchorButton: NSStatusBarButton?, onRepolish: ((String) -> Void)? = nil) {
         self.onRepolish = onRepolish
+        hasPresentedContent = true
         viewModel.canTriggerRepolish = onRepolish != nil
         viewModel.original = original
         viewModel.simplified = ""
@@ -47,9 +52,15 @@ final class PolishPanelController {
         presentPanel(anchorButton: anchorButton)
     }
 
+    @discardableResult
+    func restoreLastPanel(anchorButton: NSStatusBarButton?) -> Bool {
+        guard hasPresentedContent else { return false }
+        presentPanel(anchorButton: anchorButton)
+        return true
+    }
+
     private func presentPanel(anchorButton: NSStatusBarButton?) {
         let panel = ensurePanel()
-        panel.setContentSize(resultPanelSize)
         position(panel: panel, below: anchorButton)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -77,16 +88,16 @@ final class PolishPanelController {
         let host = NSHostingController(rootView: view)
 
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: resultPanelSize),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(origin: .zero, size: defaultResultPanelSize),
+            styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         panel.title = "润色结果"
         panel.level = .floating
         panel.contentViewController = host
-        panel.contentMinSize = resultPanelSize
-        panel.setContentSize(resultPanelSize)
+        panel.contentMinSize = minimumResultPanelSize
+        panel.setContentSize(defaultResultPanelSize)
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.moveToActiveSpace]
 
@@ -147,68 +158,200 @@ struct ResultView: View {
     let onCopy: (String) -> Void
     let onRepolish: (String) -> Void
     let onClose: () -> Void
+    @State private var selectedOutput: OutputKind = .simplified
 
-    private func outputSection(title: String, text: Binding<String>, copyTitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            TextEditor(text: text)
-                .font(.body)
-                .frame(maxWidth: .infinity, minHeight: 95, maxHeight: 95, alignment: .leading)
-                .border(Color.gray.opacity(0.3))
+    private enum OutputKind: String, CaseIterable, Identifiable {
+        case simplified
+        case polished
+        case commitMessage
 
-            HStack {
-                Spacer()
-                Button(copyTitle) { onCopy(text.wrappedValue) }
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .simplified: return "简化版本"
+            case .polished: return "优化版本"
+            case .commitMessage: return "Commit Message"
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+
+        var copyTitle: String {
+            switch self {
+            case .simplified: return "复制简化版本"
+            case .polished: return "复制优化版本"
+            case .commitMessage: return "复制 Commit Message"
+            }
+        }
+
+        var emptyHint: String {
+            switch self {
+            case .simplified: return "简化版本会展示在这里。"
+            case .polished: return "优化版本会展示在这里。"
+            case .commitMessage: return "Commit Message 会展示在这里。"
+            }
+        }
+    }
+
+    private var selectedOutputText: Binding<String> {
+        switch selectedOutput {
+        case .simplified:
+            return $viewModel.simplified
+        case .polished:
+            return $viewModel.polished
+        case .commitMessage:
+            return $viewModel.commitMessage
+        }
+    }
+
+    private var selectedOutputValue: String {
+        selectedOutputText.wrappedValue
+    }
+
+    private var hasOutput: Bool {
+        [viewModel.simplified, viewModel.polished, viewModel.commitMessage]
+            .contains { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+    }
+
+    private var statusMessage: String {
+        if viewModel.isLoading {
+            return "正在润色，请稍候..."
+        }
+        if let errorMessage = viewModel.errorMessage, errorMessage.isEmpty == false {
+            return errorMessage
+        }
+        if hasOutput {
+            return "可切换分段查看并复制结果。"
+        }
+        return selectedOutput.emptyHint
+    }
+
+    private var statusColor: Color {
+        if let errorMessage = viewModel.errorMessage, errorMessage.isEmpty == false {
+            return .red
+        }
+        return .secondary
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("原文（可编辑）")
-                .font(.headline)
-            TextEditor(text: $viewModel.original)
-                .font(.body)
-                .frame(maxWidth: .infinity, minHeight: 95, maxHeight: 95, alignment: .leading)
-                .border(Color.gray.opacity(0.3))
-            .frame(maxWidth: .infinity, alignment: .leading)
-
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Button("重新润色") { onRepolish(viewModel.original) }
-                    .disabled(!viewModel.canRepolish)
+                Label("润色结果", systemImage: "wand.and.stars")
+                    .font(.headline.weight(.semibold))
                 Spacer()
-                Button("复制原文") { onCopy(viewModel.original) }
-            }
-
-            if viewModel.isLoading {
-                HStack(spacing: 8) {
+                if viewModel.isLoading {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在润色，请稍候...")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
             }
+            .padding(.horizontal, 2)
 
-            if let errorMessage = viewModel.errorMessage, errorMessage.isEmpty == false {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 10) {
+                Label("原文（可编辑）", systemImage: "doc.text")
+                    .font(.subheadline.weight(.semibold))
+
+                TextEditor(text: $viewModel.original)
+                    .scrollContentBackground(.hidden)
+                    .font(.body)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, minHeight: 88, maxHeight: 118, alignment: .topLeading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(nsColor: .textBackgroundColor))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Color.gray.opacity(0.18), lineWidth: 1)
+                    )
+
+                HStack(spacing: 10) {
+                    Button {
+                        onRepolish(viewModel.original)
+                    } label: {
+                        Label("重新润色", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!viewModel.canRepolish)
+
+                    Button("复制原文") { onCopy(viewModel.original) }
+                        .disabled(viewModel.original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Spacer()
+                    Button("关闭", action: onClose)
+                }
             }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
 
-            outputSection(title: "简化版本", text: $viewModel.simplified, copyTitle: "复制简化版本")
-            outputSection(title: "优化表述版本", text: $viewModel.polished, copyTitle: "复制优化版本")
-            outputSection(title: "Commit Message", text: $viewModel.commitMessage, copyTitle: "复制 Commit Message")
+            VStack(alignment: .leading, spacing: 10) {
+                Label("润色输出", systemImage: "text.alignleft")
+                    .font(.subheadline.weight(.semibold))
 
-            HStack {
-                Spacer()
-                Button("关闭", action: onClose)
+                Picker("输出类型", selection: $selectedOutput) {
+                    ForEach(OutputKind.allCases) { output in
+                        Text(output.title).tag(output)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                TextEditor(text: selectedOutputText)
+                    .scrollContentBackground(.hidden)
+                    .font(.body)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(nsColor: .textBackgroundColor))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Color.gray.opacity(0.18), lineWidth: 1)
+                    )
+
+                HStack {
+                    Text(statusMessage)
+                        .font(.footnote)
+                        .foregroundStyle(statusColor)
+                        .lineLimit(2)
+                    Spacer()
+                    Button(selectedOutput.copyTitle) { onCopy(selectedOutputValue) }
+                        .disabled(selectedOutputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(nsColor: .windowBackgroundColor),
+                    Color(nsColor: .underPageBackgroundColor),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .frame(
+            minWidth: 600,
+            idealWidth: 640,
+            maxWidth: .infinity,
+            minHeight: 460,
+            idealHeight: 500,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
+        .onChange(of: viewModel.isLoading) { isLoading in
+            if isLoading {
+                selectedOutput = .simplified
             }
         }
-        .padding(16)
-        .frame(width: 760, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

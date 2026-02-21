@@ -37,11 +37,11 @@ final class SettingsViewModel: ObservableObject {
     }
 
     var provider: PolishProvider {
-        PolishProvider(rawValue: providerID) ?? .openAI
+        PolishProvider(rawValue: providerID) ?? .codex
     }
 
     init() {
-        self.providerID = UserDefaults.standard.string(forKey: "providerID") ?? PolishProvider.openAI.rawValue
+        self.providerID = UserDefaults.standard.string(forKey: "providerID") ?? PolishProvider.codex.rawValue
         self.apiKey = UserDefaults.standard.string(forKey: "apiKey") ?? ""
         self.endpoint = UserDefaults.standard.string(forKey: "endpoint") ?? "https://api.openai.com/v1/chat/completions"
 
@@ -95,7 +95,7 @@ struct SettingsView: View {
             case .codex:
                 Section("Codex CLI 配置") {
                     TextField("命令模板", text: $viewModel.codexCommand)
-                    Text("示例：codex exec {{prompt}}")
+                    Text("示例：codex exec --skip-git-repo-check {{prompt}}")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -154,7 +154,7 @@ struct OnboardingView: View {
                 TextField("API Endpoint", text: $viewModel.endpoint)
             } else if viewModel.provider == .codex {
                 TextField("Codex 命令模板", text: $viewModel.codexCommand)
-                Text("默认：codex exec {{prompt}}")
+                Text("默认：codex exec --skip-git-repo-check {{prompt}}")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
