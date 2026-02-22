@@ -3,8 +3,8 @@ import SwiftUI
 
 @MainActor
 final class PolishPanelController {
-    private let defaultResultPanelSize = NSSize(width: 640, height: 500)
-    private let minimumResultPanelSize = NSSize(width: 540, height: 360)
+    private let defaultResultPanelSize = NSSize(width: 640, height: 620)
+    private let minimumResultPanelSize = NSSize(width: 540, height: 500)
     private let viewModel = ResultViewModel()
     private var window: NSPanel?
     private var onRepolish: ((String) -> Void)?
@@ -322,7 +322,7 @@ struct ResultView: View {
                         .scrollContentBackground(.hidden)
                         .font(.body)
                         .padding(8)
-                        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 260, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 320, alignment: .topLeading)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
                                 .fill(Color(nsColor: .textBackgroundColor))
@@ -366,8 +366,8 @@ struct ResultView: View {
             minWidth: 540,
             idealWidth: 640,
             maxWidth: .infinity,
-            minHeight: 340,
-            idealHeight: 500,
+            minHeight: 500,
+            idealHeight: 620,
             maxHeight: .infinity,
             alignment: .topLeading
         )
